@@ -4,18 +4,19 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/back_gradient_login"
+    android:background="#094275"
     tools:context=".Login">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="600dp"
+        android:background="#094275"
         android:orientation="vertical"
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
-            android:layout_width="211dp"
-            android:layout_height="157dp"
+            android:layout_width="164dp"
+            android:layout_height="131dp"
             android:layout_gravity="center"
             android:layout_marginTop="30dp"
             android:src="@drawable/logotipo" />
@@ -24,12 +25,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:scrollbarAlwaysDrawVerticalTrack="false">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
                 android:layout_gravity="center"
-                android:gravity="center">
+                android:gravity="center"
+                android:orientation="vertical">
 
                 <com.google.android.material.textfield.TextInputLayout
                     style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -84,13 +86,23 @@
                 <Button
                     android:id="@+id/btnLogin"
                     android:layout_width="330dp"
-                    android:layout_height="50dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
                     android:background="@drawable/back_loginbutton"
                     android:text="LOGIN"
                     android:textColor="#ffffff"
                     android:textSize="22sp"
                     android:textStyle="normal|bold" />
+
+                <Button
+                    android:id="@+id/btnRegistro"
+                    android:layout_width="330dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:background="@drawable/back_registbutton"
+                    android:text="REGISTRARSE"
+                    android:textColor="#221F1F"
+                    android:textSize="22sp" />
 
                 <TextView
                     android:id="@+id/TxtO"
@@ -100,14 +112,15 @@
                     android:layout_marginTop="20dp"
                     android:gravity="center"
                     android:text="O"
-                    android:textSize="30sp"
+                    android:textSize="18sp"
                     android:textStyle="normal|bold" />
 
                 <com.google.android.gms.common.SignInButton
                     android:id="@+id/signButton"
-                    android:layout_width="234dp"
-                    android:layout_height="69dp"
-                    android:layout_marginTop="15dp">
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_marginTop="15dp"
+                    app:buttonSize="wide">
 
                 </com.google.android.gms.common.SignInButton>
 

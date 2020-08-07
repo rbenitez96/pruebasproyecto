@@ -4,12 +4,23 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.Parcelable;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
@@ -25,32 +36,63 @@ import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.auth.FirebaseAuthCredentialsProvider;
 import android.os.Parcelable;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class Login extends AppCompatActivity implements View.OnClickListener{
-
+    Button btnRegistro, btnLogin;
     SignInButton signInButton;
     GoogleSignInClient mGoogleSignInClient;
-    FirebaseAuth mAuth;
+    FirebaseAuth firebaseAuth;
+    private ProgressDialog progressDialog;
+    private FirebaseFirestore db;
+    EditText edtextmail, edtextpass;
     int RC_SIGN_IN = 123;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+        //Declaracion de variables
+        autologin();
+        edtextmail = findViewById(R.id.Edtxt_login);
+        edtextpass = findViewById(R.id.Edtxt_pass);
         signInButton = findViewById(R.id.signButton);
-        signInButton.setSize(SignInButton.SIZE_STANDARD);
-        mAuth = FirebaseAuth.getInstance();
+        firebaseAuth = FirebaseAuth.getInstance();
+        db =  FirebaseFirestore.getInstance();
+        btnRegistro = findViewById(R.id.btnRegistro);
+        btnLogin = findViewById(R.id.btnLogin);
+        progressDialog = new ProgressDialog(this);
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
                 .build();
         mGoogleSignInClient = GoogleSignIn.getClient(this,gso);
+        edtextpass.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if(actionId == EditorInfo.IME_ACTION_SEND){
+                    edtextpass.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            logueado();
+                        }
+                    });
+                }
+                return false;
+            }
+        });
         signInButton.setOnClickListener(this);
+        btnRegistro.setOnClickListener(this);
+        btnLogin.setOnClickListener(this);
 
     }
 
@@ -58,9 +100,18 @@ public class Login extends AppCompatActivity implements View.OnClickListener{
     public void onClick(View view) {
         switch (view.getId()){
             case R.id.signButton:
-                singIn();
+                if(verConexioInternet()){
+                    singIn();
+                }
                 break;
-
+            case R.id.btnRegistro:
+                registro();
+                break;
+            case R.id.btnLogin:
+                if(verConexioInternet()){
+                    logueado();
+                }
+                break;
         }
     }
 
@@ -86,11 +137,11 @@ public class Login extends AppCompatActivity implements View.OnClickListener{
 
     private void FirebaseGoogleAuth(GoogleSignInAccount account){
         AuthCredential authCredential = GoogleAuthProvider.getCredential(account.getIdToken(),null);
-        mAuth.signInWithCredential(authCredential).addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+        firebaseAuth.signInWithCredential(authCredential).addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
             @Override
             public void onComplete(@NonNull Task<AuthResult> task) {
                 if(task.isSuccessful()){
-                    FirebaseUser user = mAuth.getCurrentUser();
+                    FirebaseUser user = firebaseAuth.getCurrentUser();
                     updateUI(user);
                 }else{
                     System.out.println("Error");
@@ -100,18 +151,124 @@ public class Login extends AppCompatActivity implements View.OnClickListener{
         });
     }
 
-    private void updateUI(FirebaseUser user){
+    private void updateUI(final FirebaseUser user){
         if (user != null) {
-            HashMap<String, String> info_user = new HashMap<String, String>();
-            info_user.put("user_name", user.getDisplayName());
-            info_user.put("user_email", user.getEmail());
-            info_user.put("user_photo", String.valueOf(user.getPhotoUrl()));
-            info_user.put("user_id", user.getUid());
-            finish();
-            Intent intent = new Intent(Login.this, Sistema.class);
-            startActivity(intent);
+            final Map<String, Object> map_user = new HashMap<>();
+            map_user.put("nombre", user.getDisplayName());
+            map_user.put("apellido", "");
+            if(user.getPhoneNumber()==null || user.getPhoneNumber().isEmpty()){
+                map_user.put("celular","");
+            }else{
+                map_user.put("celular",user.getPhoneNumber());
+            }
+            progressDialog.setMessage("Iniciando sesion"); //Muestra un progressDialog con ese mensaje
+            progressDialog.show();
+            db.collection("usuarios").document(Objects.requireNonNull(user.getEmail())).set(map_user).addOnCompleteListener(new OnCompleteListener<Void>() {
+                @Override
+                public void onComplete(@NonNull Task<Void> task) {
+                    if(task.isSuccessful()){
+                        Preferences.SaveCredenciales(Login.this,user.getEmail(),"email"); //guarda un  String con llave user
+                        Preferences.SaveCredenciales(Login.this,user.getDisplayName(),"nom_usuario");//guarda un  String con llave nombre
+                        Preferences.SaveCredenciales(Login.this,String.valueOf(user.getPhotoUrl()),"photo_user");
+                        Toast.makeText(Login.this,"Inicio de Sesion Satisfactorio",Toast.LENGTH_SHORT).show();
+                        irSistema();
+                        progressDialog.dismiss(); // termina el progressDialog
+                    }else{
+                        Toast.makeText(Login.this,"Fallo en el registro",Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
         } else {
-            System.out.println("sin registrarse");
+            System.out.println("Fallo al registrarse");
+        }
+    }
+    public void registro(){
+        Intent regis = new Intent(Login.this,Registro.class);
+        startActivity(regis);
+    }
+
+    public void logueado(){
+        final String email = edtextmail.getText().toString().trim();
+        final String pass = edtextpass.getText().toString().trim();
+        if(TextUtils.isEmpty(email)|| TextUtils.isEmpty(pass)){
+            if(TextUtils.isEmpty(email)){
+                edtextmail.setError("Este campo no puede estar vacio");
+            }
+            if(TextUtils.isEmpty(pass)){
+                edtextpass.setError("Este campo no puede estar vacio");
+            }
+        }else{
+            progressDialog.setMessage("Iniciando sesion"); //Muestra un progressDialog con ese mensaje
+            progressDialog.show();
+            firebaseAuth.signInWithEmailAndPassword(email,pass). // inicia sesion con correo y contraseña
+                    addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+                        @Override
+                        public void onComplete(@NonNull Task<AuthResult> task) {
+                            if(task.isSuccessful()){
+                                if(Objects.requireNonNull(firebaseAuth.getCurrentUser()).isEmailVerified()){ // permite ingresar si el correo ha sido verificado
+                                    final FirebaseUser firebaseUser = firebaseAuth.getCurrentUser(); // obtengo los parametros del usuario del Firebase Authentication
+                                    final String usdisplay = Objects.requireNonNull(firebaseUser.getDisplayName()); // obtengo el nombre a mostrar que esta en los parametros del usuario
+                                    final DocumentReference docRef = db.collection("usuarios").document(email);
+                                    docRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
+                                        @Override
+                                        public void onComplete(@NonNull Task<DocumentSnapshot> task) {
+                                            if(task.isSuccessful()){
+                                                DocumentSnapshot document = task.getResult();
+                                                assert document != null;
+                                                if (document.exists()) {
+                                                    InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                                                    Objects.requireNonNull(imm).hideSoftInputFromWindow(Objects.requireNonNull(getCurrentFocus()).getWindowToken(), 0);
+                                                    Preferences.SaveCredenciales(Login.this,email,"email"); //guarda un  String con llave user
+                                                    Preferences.SaveCredenciales(Login.this,usdisplay,"nom_usuario");//guarda un  String con llave nombre
+                                                    Preferences.SaveCredenciales(Login.this, Objects.requireNonNull(document.get("celular")).toString(),"telefono");
+                                                    Toast.makeText(Login.this,"Se ha ingresado correctamente",Toast.LENGTH_LONG).show();
+                                                    irSistema();
+                                                }else {
+                                                    Log.d("ERROR", "Error a obtener el documento");
+                                                }
+                                            }else{
+                                                Log.d("ERROR", "fallas al obtener con ", task.getException());
+                                            }
+                                        }
+                                    });
+                                }else{
+                                    Toast.makeText(Login.this,"Por favor verifque su correo electronico",Toast.LENGTH_LONG).show();
+                                }
+                            }else{
+                                Toast.makeText(Login.this,"Correo y/o contraseña incorrecta",Toast.LENGTH_LONG).show();
+                            }
+                            progressDialog.dismiss(); // termina el progressDialog
+                        }
+                    });
+        }
+    }
+    public void autologin(){
+        String correo = Preferences.ObtenerCredenciales(this,"email", (String) null); //obtiene String de las credenciales guardadas
+        String nom_usuario = Preferences.ObtenerCredenciales(this,"nom_usuario", (String) null); //obtiene String de las credenciales guardadas
+       if(correo!=null && nom_usuario!= null){
+            irSistema(); // ingresa al sistema si existen valores guardados en el SharedPreferences
+        }
+    }
+    public void irSistema(){
+        Intent i = new Intent(Login.this,MainActivity.class);
+        startActivity(i);
+        finish(); // destruye la actividad
+
+    }
+
+    public boolean verConexioInternet(){
+        try {
+            ConnectivityManager con = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
+            assert con != null;
+            NetworkInfo networkInfo = con.getActiveNetworkInfo();
+            if (networkInfo != null && networkInfo.isConnected()) {
+                return true;
+            }else{
+                Toast.makeText(Login.this,"Verifique su conexion de Internet",Toast.LENGTH_SHORT).show();
+                return false;
+            }
+        }catch (NullPointerException n){
+            return false;
         }
     }
 }
